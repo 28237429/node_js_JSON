@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "src/server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "IIT dashboard.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "iit_data.json",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/data(.*)",
+      "dest": "src/server.js"
+    },
+    {
+      "src": "/iit_data.json",
+      "dest": "iit_data.json"
+    },
+    {
+      "src": "/",
+      "dest": "IIT dashboard.html"
+    }
+  ]
+}

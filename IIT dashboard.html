@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IIT VisionSpec Dashboard</title>
+    
+    <!-- 1. Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Load React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 3. Load Babel (to compile JSX in browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+        body { background-color: #020617; color: #e2e8f0; }
+        
+        /* Checkbox styling */
+        input[type="checkbox"]:disabled { opacity: 0.3; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // --- ICONS ---
+        const IconBase = ({ d, className }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" height="24" viewBox="0 0 24 24" 
+                fill="none" stroke="currentColor" strokeWidth="2" 
+                strokeLinecap="round" strokeLinejoin="round"
+                className={className} 
+            >
+                <path d={d} />
+            </svg>
+        );
+
+        const Eye = (p) => <IconBase {...p} d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />;
+        const Filter = (p) => <IconBase {...p} d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />;
+        const Upload = (p) => <IconBase {...p} d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12" />;
+        const Download = (p) => <IconBase {...p} d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" />;
+        const XIcon = (p) => <IconBase {...p} d="M18 6 6 18 M6 6l12 12" />; 
+        const Plus = (p) => <IconBase {...p} d="M5 12h14 M12 5v14" />;
+        const Info = (p) => <IconBase {...p} d="M12 16v-4 M12 8h.01 M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10z" />;
+        const Calculator = (p) => <IconBase {...p} d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z M14 11h4 M14 14h4 M14 17h4 M8 13h2 M8 17h2" />;
+        const ExternalLink = (p) => <IconBase {...p} d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6 M15 3h6v6 M10 14 21 3" />;
+        const ArrowRightLeft = (p) => <IconBase {...p} d="m16 7 4-4-4-4 M20 3H4 M8 17l-4 4 4 4 M4 21h16" />;
+        const Trash2 = (p) => <IconBase {...p} d="M3 6h18 M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6 M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2 M10 11v6 M14 11v6" />;
+        const Check = (p) => <IconBase {...p} d="M20 6 9 17l-5-5" />;
+        const Pencil = (p) => <IconBase {...p} d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />;
+        const AlertTriangle = (p) => <IconBase {...p} d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01" />;
+        const Activity = (p) => <IconBase {...p} d="M22 12h-4l-3 9L9 3l-3 9H2" />;
+        const Layers = (p) => <IconBase {...p} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />;
+        const Tag = (p) => <IconBase {...p} d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z M7 7h.01" />;
+
+        // --- DATA & LOGIC ---
+
+        // Node.js API配置
+        const API_BASE_URL = 'http://localhost:3000';
+        const API_ENDPOINT = `${API_BASE_URL}/api/data`;
+                
+        const Card = ({ children, className = '' }) => (
+            <div className={`bg-slate-800 border border-slate-700 rounded-lg shadow-sm ${className}`}>
+                {children}
+            </div>
+        );
+
+        const Badge = ({ children, color = 'blue', className='' }) => {
+            const colors = {
+                blue: 'bg-blue-900/40 text-blue-200 border-blue-800',
+                green: 'bg-emerald-900/40 text-emerald-200 border-emerald-800',
+                amber: 'bg-amber-900/40 text-amber-200 border-amber-800',
+                red: 'bg-red-900/40 text-red-200 border-red-800',
+                purple: 'bg-purple-900/40 text-purple-200 border-purple-800',
+                orange: 'bg-orange-900/40 text-orange-200 border-orange-800',
+                cyan: 'bg-cyan-900/40 text-cyan-200 border-cyan-800',
+                slate: 'bg-slate-700/40 text-slate-300 border-slate-600',
+                grey: 'bg-gray-700/40 text-gray-300 border-gray-600',
+                pink: 'bg-pink-900/40 text-pink-200 border-pink-800',
+                yellow: 'bg-yellow-900/40 text-yellow-200 border-yellow-800',
+            };
+            return (
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${colors[color] || colors['blue']} ${className}`}>
+                {children}
+                </span>
+            );
+        };
+
+        const formatRange = (r, decimal = 0) => {
+            if (r.min === r.max) return r.min.toFixed(decimal);
+            return `${r.min.toFixed(decimal)} - ${r.max.toFixed(decimal)}`;
+        };
+
+        const getAvg = (r) => (r.min + r.max) / 2;
+
+        const getFormFactorCode = (type) => {
+            switch(type) {
+                case 'Monocular': return 'MN';
+                case 'Binocular': return 'BN';
+                case 'Bi-ocular': return 'BO';
+                default: return '??';
+            }
+        };
+
+        const getFormFactorColor = (type) => {
+            switch(type) {
+                case 'Monocular': return 'grey';   
+                case 'Binocular': return 'purple'; 
+                case 'Bi-ocular': return 'pink';  
+                default: return 'slate';
+            }
+        };
+
+        const getGenCode = (gen) => {
+            switch(gen) {
+                case 'Gen 2': return 'G2';
+                case 'Gen 2+': return 'G2+';
+                case 'Gen 3': return 'G3';
+                default: return gen;
+            }
+        };
+
+        const getGenColor = (gen) => {
+            switch(gen) {
+                case 'Gen 2': return 'yellow';  
+                case 'Gen 2+': return 'orange'; 
+                case 'Gen 3': return 'red';     
+                default: return 'slate';
+            }
+        };
+
+        const DEFAULT_FORM = {
+            name: '', manufacturer: '', type: 'Monocular', generation: 'Gen 3',
+            phosphor: 'White', tubeType: '', url: '', fov: 40,
+            fomMin: 2000, fomMax: 2400,
+            resMin: 64, resMax: 72,
+            snrMin: 0, snrMax: 0, 
+            price: 3000, priceEuro: undefined,
+            selectedFeatures: [],
+            selectedBadges: [] // Features selected for display card
+        };
+
+        // --- CHART COMPONENT ---
+        const ScatterPlot = ({ data, xMetric, onPointClick }) => {
+            if (data.length === 0) return <div className="h-64 flex items-center justify-center text-slate-500">No data points</div>;
+
+            const getMetricRangeObj = (d) => {
+                 if (xMetric === 'fom') return d.fom;
+                 if (xMetric === 'snr') return d.snr;
+                 if (xMetric === 'res') return d.resolution;
+                 return { min: 0, max: 0 };
+            };
+
+            const getAvgVal = (d) => getAvg(getMetricRangeObj(d));
+
+            const prices = data.map(d => d.price);
+            const xRanges = data.map(d => getMetricRangeObj(d));
+            
+            const minPrice = Math.min(...prices) * 0.9;
+            const maxPrice = Math.max(...prices) * 1.1;
+            
+            const minX = Math.min(...xRanges.map(r => r.min)) * 0.9;
+            const maxX = Math.max(...xRanges.map(r => r.max)) * 1.1;
+
+            const getXPerc = (val) => ((val - minX) / (maxX - minX)) * 80 + 15; // Increased padding for labels
+            const getYPerc = (price) => 90 - ((price - minPrice) / (maxPrice - minPrice)) * 80;
+
+            const generateTicks = (min, max, count = 5) => {
+                const step = (max - min) / (count - 1);
+                return Array.from({ length: count }, (_, i) => Math.round(min + i * step));
+            };
+
+            const xTicks = generateTicks(minX, maxX, 6);
+            const yTicks = generateTicks(minPrice, maxPrice, 6);
+
+            return (
+                <div className="relative h-96 w-full bg-slate-900/50 rounded-lg border border-slate-700 mt-4 select-none">
+                    <div className="absolute top-2 left-3 text-[10px] text-slate-500 font-bold z-10 uppercase tracking-widest">
+                        Price vs {xMetric}
+                    </div>
+                    
+                    <svg className="w-full h-full text-[10px]" style={{overflow: 'visible'}}>
+                        
+                        {/* Grid & Ticks Y (Price) */}
+                        {yTicks.map(tick => {
+                            const y = getYPerc(tick);
+                            return (
+                                <g key={`y-${tick}`}>
+                                    <line x1="15%" y1={`${y}%`} x2="95%" y2={`${y}%`} stroke="#334155" strokeWidth="1" opacity="0.3" />
+                                    <text x="14%" y={`${y}%`} dy="3px" textAnchor="end" fill="#64748b">${tick}</text>
+                                </g>
+                            );
+                        })}
+
+                        {/* Grid & Ticks X (Metric) */}
+                        {xTicks.map(tick => {
+                            const x = getXPerc(tick);
+                            return (
+                                <g key={`x-${tick}`}>
+                                    <line x1={`${x}%`} y1="10%" x2={`${x}%`} y2="90%" stroke="#334155" strokeWidth="1" opacity="0.3" />
+                                    <text x={`${x}%`} y="95%" textAnchor="middle" fill="#64748b">{tick}</text>
+                                </g>
+                            );
+                        })}
+
+                        {/* Axis Labels */}
+                        <text x="50%" y="99%" textAnchor="middle" fill="#94a3b8" fontWeight="bold">
+                            {xMetric.toUpperCase()}
+                        </text>
+                        <text x="5%" y="50%" textAnchor="middle" fill="#94a3b8" fontWeight="bold" style={{ writingMode: 'vertical-rl' }}>
+                            Price ($)
+                        </text>
+
+                        {/* Data Points */}
+                        {data.map((p) => {
+                            const range = getMetricRangeObj(p);
+                            const x1 = getXPerc(range.min);
+                            const x2 = getXPerc(range.max);
+                            const cx = getXPerc(getAvg(range));
+                            const y = getYPerc(p.price);
+                            
+                            const barColor = p.phosphor === 'White' ? '#94a3b8' : '#10b981';
+                            const dotColor = p.phosphor === 'White' ? '#f8fafc' : '#34d399';
+
+                            return (
+                                <g key={p.id} onClick={() => onPointClick(p)} className="cursor-pointer group">
+                                    <rect 
+                                        x={Math.min(x1, x2) - 1 + '%'} 
+                                        y={y - 2 + '%'} 
+                                        width={Math.abs(x2 - x1) + 2 + '%'} 
+                                        height="4%" 
+                                        fill="transparent" 
+                                    />
+                                    <line 
+                                        x1={`${x1}%`} x2={`${x2}%`} 
+                                        y1={`${y}%`} y2={`${y}%`} 
+                                        stroke={barColor} 
+                                        strokeWidth="2" 
+                                        opacity="0.6"
+                                        className="transition-all duration-200 group-hover:stroke-white group-hover:opacity-100 group-hover:stroke-[3px]"
+                                    />
+                                    <circle 
+                                        cx={`${cx}%`} cy={`${y}%`} r="3.5" 
+                                        fill={dotColor} stroke="#0f172a" strokeWidth="1"
+                                        className="transition-all duration-200 group-hover:r-5 group-hover:stroke-2"
+                                    />
+                                    {/* UPDATED TOOLTIP START */}
+                                    <foreignObject 
+                                        x={`${cx > 60 ? cx - 25 : cx + 2}%`} 
+                                        y={`${y > 50 ? y - 25 : y + 2}%`} 
+                                        width="220" height="120" 
+                                        className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-50 overflow-visible"
+                                    >
+                                        <div className="bg-slate-900/95 backdrop-blur-md border border-slate-600 shadow-2xl rounded-lg p-3 text-xs flex flex-col gap-1.5 relative">
+                                            <div className="border-b border-slate-700 pb-1 mb-1">
+                                                <div className="font-bold text-slate-100 truncate text-sm">{p.name}</div>
+                                                <div className="flex justify-between items-baseline mt-0.5">
+                                                    <span className="text-emerald-400 font-bold text-sm">${p.price.toLocaleString()}</span>
+                                                    <span className="text-slate-400 font-mono text-[10px]">FOM: {formatRange(p.fom)}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${p.phosphor === 'White' ? 'bg-blue-900/40 text-blue-200 border-blue-800' : 'bg-emerald-900/40 text-emerald-200 border-emerald-800'}`}>
+                                                    {p.phosphor === 'White' ? 'WP' : 'GP'}
+                                                </span>
+                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${getFormFactorColor(p.type) === 'purple' ? 'bg-purple-900/40 text-purple-200 border-purple-800' : p.type === 'Bi-ocular' ? 'bg-pink-900/40 text-pink-200 border-pink-800' : 'bg-gray-700/40 text-gray-300 border-gray-600'}`}>
+                                                    {getFormFactorCode(p.type)}
+                                                </span>
+                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${getGenColor(p.generation) === 'red' ? 'bg-red-900/40 text-red-200 border-red-800' : getGenColor(p.generation) === 'orange' ? 'bg-orange-900/40 text-orange-200 border-orange-800' : 'bg-yellow-900/40 text-yellow-200 border-yellow-800'}`}>
+                                                    {getGenCode(p.generation)}
+                                                </span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border bg-slate-700/40 text-slate-300 border-slate-600">
+                                                    {p.fov || 40}°
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </foreignObject>
+                                    {/* UPDATED TOOLTIP END */}
+                                </g>
+                            );
+                        })}
+                    </svg>
+                </div>
+            );
+        };
+
+        function App() {
+            // 添加加载状态管理
+            const [isLoading, setIsLoading] = useState(true);
+            const [loadError, setLoadError] = useState(null);
+            
+            // 从LocalStorage加载数据，如果没有则使用初始数据
+            const loadDataFromStorage = () => {
+                const savedData = localStorage.getItem('iitVisionSpecData');
+                return savedData ? JSON.parse(savedData) : [];
+            };
+
+            const [data, setData] = useState(loadDataFromStorage);
+            const [comparisonList, setComparisonList] = useState([]);
+            
+            const [showJsonInput, setShowJsonInput] = useState(false);
+            const [showForm, setShowForm] = useState(false);
+            const [rawJson, setRawJson] = useState(JSON.stringify(loadDataFromStorage(), null, 2));
+            
+            // 添加数据变更检测状态
+            const [hasDataChanged, setHasDataChanged] = useState(false);
+            
+            // 在组件挂载后，从JSON Server加载数据
+            useEffect(() => {
+                const fetchDataFromApi = async () => {
+                    setIsLoading(true);
+                    setLoadError(null);
+                    try {
+                        const response = await fetch(API_ENDPOINT);
+                        if (!response.ok) throw new Error('Failed to load data from JSON Server');
+                        const apiData = await response.json();
+                        if (Array.isArray(apiData) && apiData.length > 0) {
+                            setData(apiData);
+                            setRawJson(JSON.stringify(apiData, null, 2));
+                            // 同时保存到localStorage作为备份
+                            localStorage.setItem('iitVisionSpecData', JSON.stringify(apiData));
+                        }
+                    } catch (error) {
+                        console.error('Error loading data from API:', error);
+                        setLoadError('Failed to connect to JSON Server. Please make sure the server is running.');
+                        // 如果API失败，尝试从localStorage加载数据
+                        const savedData = localStorage.getItem('iitVisionSpecData');
+                        if (savedData) {
+                            const localData = JSON.parse(savedData);
+                            setData(localData);
+                            setRawJson(JSON.stringify(localData, null, 2));
+                        }
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+                
+                fetchDataFromApi();
+            }, []);
+            
+            // 当数据变化时，通过API保存到JSON Server
+            useEffect(() => {
+                if (data.length > 0 && !isLoading) {
+                    const saveDataToApi = async () => {
+                        try {
+                            // 先获取现有数据的所有ID
+                            const response = await fetch(API_ENDPOINT);
+                            const existingData = await response.json();
+                            
+                            // 删除所有现有数据
+                            for (const item of existingData) {
+                                await fetch(`${API_ENDPOINT}${item.id}`, {
+                                    method: 'DELETE'
+                                });
+                            }
+                            
+                            // 然后重新创建所有数据
+                            for (const item of data) {
+                                await fetch(API_ENDPOINT, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify(item)
+                                });
+                            }
+                            
+                            // 同时保存到localStorage作为备份
+                            localStorage.setItem('iitVisionSpecData', JSON.stringify(data));
+                            setRawJson(JSON.stringify(data, null, 2));
+                            setHasDataChanged(false);
+                        } catch (error) {
+                            console.error('Error saving data to API:', error);
+                            setHasDataChanged(true);
+                            // 即使API保存失败，也要保存到localStorage
+                            localStorage.setItem('iitVisionSpecData', JSON.stringify(data));
+                            setRawJson(JSON.stringify(data, null, 2));
+                        }
+                    };
+                    
+                    // 使用防抖，避免频繁请求
+                    const timer = setTimeout(() => {
+                        saveDataToApi();
+                    }, 500);
+                    
+                    return () => clearTimeout(timer);
+                }
+            }, [data, isLoading]);
+
+            const [chartMetric, setChartMetric] = useState('fom');
+            const [formError, setFormError] = useState(null);
+            const [confirmConfig, setConfirmConfig] = useState({ show: false, message: '', onConfirm: () => {} });
+
+            const [priceRange, setPriceRange] = useState([0, 50000]);
+            const [fomFilter, setFomFilter] = useState([1000, 4000]);
+            const [snrFilter, setSnrFilter] = useState([15, 45]);
+            const [resFilter, setResFilter] = useState([40, 90]);
+            const [selectedTypes, setSelectedTypes] = useState(['Monocular', 'Binocular', 'Bi-ocular']);
+            const [selectedGenerations, setSelectedGenerations] = useState(['Gen 2', 'Gen 2+', 'Gen 3']); // Added Generation State
+            const [selectedPhosphor, setSelectedPhosphor] = useState(['White', 'Green']);
+            const [filterFeatures, setFilterFeatures] = useState([]);
+            const [filterManufacturers, setFilterManufacturers] = useState([]);
+            const [filterFOV, setFilterFOV] = useState([]);
+
+            const allFeatures = useMemo(() => Array.from(new Set(data.flatMap(p => p.features))).sort(), [data]);
+            const allManufacturers = useMemo(() => Array.from(new Set(data.map(p => p.manufacturer))).sort(), [data]);
+            const allFOVs = useMemo(() => Array.from(new Set(data.map(p => p.fov || 40))).sort((a,b) => a-b), [data]);
+
+            const [formData, setFormData] = useState(DEFAULT_FORM);
+            const [customFeature, setCustomFeature] = useState('');
+            const [customManufacturer, setCustomManufacturer] = useState('');
+            const [customFOV, setCustomFOV] = useState('');
+
+            useEffect(() => {
+                if (formData.fomMin && formData.fomMax && formData.resMin && formData.resMax) {
+                setFormData(prev => ({
+                    ...prev,
+                    snrMin: parseFloat((prev.fomMin / prev.resMax).toFixed(1)),
+                    snrMax: parseFloat((prev.fomMax / prev.resMin).toFixed(1))
+                }));
+                }
+            }, [formData.fomMin, formData.fomMax, formData.resMin, formData.resMax]);
+
+            const filteredData = useMemo(() => {
+                return data.filter(item => {
+                const avgFom = getAvg(item.fom);
+                const avgSnr = getAvg(item.snr);
+                const avgRes = getAvg(item.resolution);
+                const itemFov = item.fov || 40;
+                
+                const matchesFeatures = filterFeatures.length === 0 || filterFeatures.every(f => item.features.includes(f));
+                const matchesManufacturer = filterManufacturers.length === 0 || filterManufacturers.includes(item.manufacturer);
+                const matchesFOV = filterFOV.length === 0 || filterFOV.includes(itemFov);
+                const matchesGeneration = selectedGenerations.includes(item.generation); // Added Generation Check
+
+                return (
+                    item.price >= priceRange[0] && item.price <= priceRange[1] &&
+                    avgFom >= fomFilter[0] && avgFom <= fomFilter[1] &&
+                    avgSnr >= snrFilter[0] && avgSnr <= snrFilter[1] &&
+                    avgRes >= resFilter[0] && avgRes <= resFilter[1] &&
+                    selectedTypes.includes(item.type) &&
+                    selectedPhosphor.includes(item.phosphor) &&
+                    matchesGeneration && // Include in return
+                    matchesFeatures &&
+                    matchesManufacturer &&
+                    matchesFOV
+                );
+                });
+            }, [data, priceRange, fomFilter, snrFilter, resFilter, selectedTypes, selectedPhosphor, selectedGenerations, filterFeatures, filterManufacturers, filterFOV]); // Added dependency
+
+            const handleImport = () => {
+                try {
+                    const parsed = JSON.parse(rawJson);
+                    if (Array.isArray(parsed)) setData(parsed);
+                    setShowJsonInput(false);
+                } catch (e) { alert("Invalid JSON."); }
+            };
+
+            // 处理文件上传导入
+            const handleFileImport = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        if (Array.isArray(parsed)) {
+                            setData(parsed);
+                            setShowJsonInput(false);
+                            alert("Data imported successfully!");
+                        } else {
+                            alert("Invalid JSON format: Expected an array.");
+                        }
+                    } catch (e) {
+                        alert("Error parsing JSON file.");
+                    }
+                };
+                reader.onerror = () => {
+                    alert("Error reading file.");
+                };
+                reader.readAsText(file);
+                // 重置文件输入，以便可以重新选择同一个文件
+                event.target.value = '';
+            };
+
+            const handleExport = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "iit_data.json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+                // 导出成功后重置数据变更状态
+                setHasDataChanged(false);
+            };
+
+            const openAddForm = () => {
+                setFormData(DEFAULT_FORM);
+                setFormError(null);
+                setShowForm(true);
+            };
+
+            const openEditForm = (p) => {
+                setFormData({
+                    id: p.id,
+                    name: p.name,
+                    manufacturer: p.manufacturer,
+                    type: p.type,
+                    generation: p.generation,
+                    phosphor: p.phosphor,
+                    tubeType: p.tubeType,
+                    url: p.url,
+                    fov: p.fov || 40,
+                    fomMin: p.fom.min, fomMax: p.fom.max,
+                    resMin: p.resolution.min, resMax: p.resolution.max,
+                    snrMin: p.snr.min, snrMax: p.snr.max,
+                    price: p.price,
+                    priceEuro: p.priceEuro,
+                    selectedFeatures: p.features,
+                    selectedBadges: p.badges || []
+                });
+                setFormError(null);
+                setShowForm(true);
+            };
+
+            const handleDelete = (id) => {
+                setConfirmConfig({
+                    show: true,
+                    message: "Are you sure you want to delete this product? This cannot be undone.",
+                    onConfirm: () => {
+                        setData(prev => prev.filter(p => p.id !== id));
+                        setComparisonList(prev => prev.filter(pid => pid !== id));
+                        setConfirmConfig(prev => ({ ...prev, show: false }));
+                    }
+                });
+            };
+
+            const handleSaveProduct = () => {
+                if (!formData.name || !formData.price || !formData.manufacturer || !formData.fov) {
+                    setFormError("Product Name, Manufacturer, FOV, and Price (USD) are required.");
+                    return;
+                }
+                
+                const productToSave = {
+                    id: formData.id || Date.now().toString(),
+                    name: formData.name || 'Unknown',
+                    manufacturer: formData.manufacturer || 'Unknown',
+                    type: formData.type,
+                    generation: formData.generation,
+                    tubeType: formData.tubeType || 'Unknown',
+                    phosphor: formData.phosphor,
+                    fov: Number(formData.fov),
+                    fom: { min: formData.fomMin, max: formData.fomMax },
+                    resolution: { min: formData.resMin, max: formData.resMax },
+                    snr: { min: formData.snrMin, max: formData.snrMax },
+                    price: Number(formData.price),
+                    priceEuro: formData.priceEuro ? Number(formData.priceEuro) : undefined,
+                    url: formData.url || '',
+                    features: formData.selectedFeatures,
+                    badges: formData.selectedBadges
+                };
+
+                if (formData.id) {
+                    setData(prev => prev.map(p => p.id === formData.id ? productToSave : p));
+                } else {
+                    setData(prev => [...prev, productToSave]);
+                }
+                setShowForm(false);
+            };
+
+            // Toggle "Has Feature"
+            const toggleHasFeature = (feat) => {
+                setFormData(prev => {
+                    const isSelected = prev.selectedFeatures.includes(feat);
+                    return {
+                        ...prev,
+                        selectedFeatures: isSelected 
+                            ? prev.selectedFeatures.filter(f => f !== feat) 
+                            : [...prev.selectedFeatures, feat],
+                        // If unselecting "Has", also unselect "Badge"
+                        selectedBadges: isSelected
+                            ? prev.selectedBadges.filter(f => f !== feat)
+                            : prev.selectedBadges
+                    };
+                });
+            };
+
+            // Toggle "Show Badge"
+            const toggleShowBadge = (feat) => {
+                setFormData(prev => {
+                    const isBadge = prev.selectedBadges.includes(feat);
+                    if (!isBadge && prev.selectedBadges.length >= 5) return prev; // Limit 5
+                    return {
+                        ...prev,
+                        selectedBadges: isBadge
+                            ? prev.selectedBadges.filter(f => f !== feat)
+                            : [...prev.selectedBadges, feat]
+                    };
+                });
+            };
+
+            const addCustomFeature = () => {
+                if (customFeature.trim()) {
+                    toggleHasFeature(customFeature.trim());
+                    setCustomFeature('');
+                }
+            };
+
+            const handleDeleteFeature = (featToDelete) => {
+                setConfirmConfig({
+                    show: true,
+                    message: `Delete feature "${featToDelete}"? This will remove it from ALL products in your database.`,
+                    onConfirm: () => {
+                        setData(prevData => prevData.map(p => ({
+                            ...p,
+                            features: p.features.filter(f => f !== featToDelete),
+                            badges: (p.badges || []).filter(f => f !== featToDelete)
+                        })));
+                        // Also remove from current form
+                        setFormData(prev => ({
+                            ...prev,
+                            selectedFeatures: prev.selectedFeatures.filter(f => f !== featToDelete),
+                            selectedBadges: prev.selectedBadges.filter(f => f !== featToDelete)
+                        }));
+                        setConfirmConfig(prev => ({ ...prev, show: false }));
+                    }
+                });
+            };
+
+            const addCustomManufacturer = () => {
+                if (customManufacturer.trim()) {
+                    setFormData(prev => ({ ...prev, manufacturer: customManufacturer.trim() }));
+                    setCustomManufacturer('');
+                }
+            };
+
+            const handleDeleteManufacturer = (mfrToDelete) => {
+                setConfirmConfig({
+                    show: true,
+                    message: `Delete manufacturer "${mfrToDelete}"? This will set the manufacturer to 'Unknown' for all matching products.`,
+                    onConfirm: () => {
+                        setData(prev => prev.map(p => p.manufacturer === mfrToDelete ? { ...p, manufacturer: 'Unknown' } : p));
+                        if (formData.manufacturer === mfrToDelete) {
+                        setFormData(prev => ({ ...prev, manufacturer: 'Unknown' }));
+                        }
+                        setConfirmConfig(prev => ({ ...prev, show: false }));
+                    }
+                });
+            };
+
+            const addCustomFOV = () => {
+                const val = Number(customFOV);
+                if (customFOV.trim() && !isNaN(val)) {
+                    setFormData(prev => ({ ...prev, fov: val }));
+                    setCustomFOV('');
+                }
+            };
+
+            const handleDeleteFOV = (fovToDelete) => {
+                setConfirmConfig({
+                    show: true,
+                    message: `Delete FOV "${fovToDelete}°"? This will reset FOV to 40° for all matching products.`,
+                    onConfirm: () => {
+                        setData(prev => prev.map(p => p.fov === fovToDelete ? { ...p, fov: 40 } : p));
+                        if (formData.fov === fovToDelete) {
+                            setFormData(prev => ({ ...prev, fov: 40 }));
+                        }
+                        setConfirmConfig(prev => ({ ...prev, show: false }));
+                    }
+                });
+            };
+
+            const toggleComparison = (id) => {
+                setComparisonList(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+            };
+
+            const compareAllFiltered = () => {
+                if (filteredData.length > 0) {
+                    setComparisonList(filteredData.map(p => p.id));
+                }
+            };
+
+            const comparisonProducts = data.filter(p => comparisonList.includes(p.id));
+
+            return (
+                <div className="min-h-screen bg-slate-950 text-slate-200 font-sans p-2 md:p-6">
+                    {/* 加载状态显示 */}
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center min-h-[50vh]">
+                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500 mb-4"></div>
+                            <h2 className="text-xl font-semibold text-emerald-400">Loading data...</h2>
+                            <p className="text-slate-500 mt-2">Fetching initial data from iit_data.json</p>
+                        </div>
+                    ) : (
+                        <>
+                        <div className="max-w-screen-2xl mx-auto mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                            <h1 className="text-3xl font-bold text-emerald-400 flex items-center gap-2">
+                                <Eye className="w-8 h-8" /> IIT VisionSpec
+                            </h1>
+                            <p className="text-slate-400 text-sm">Pro Pricing & Spec Comparison Tool</p>
+                            </div>
+                            <div className="flex gap-2">
+                            <button onClick={openAddForm} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-medium shadow-lg text-sm">
+                                <Plus className="w-4 h-4" /> Add Product
+                            </button>
+                            <button onClick={handleExport} className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium shadow-lg text-sm">
+                                <Download className="w-4 h-4" /> Export
+                            </button>
+                            <button onClick={() => setShowJsonInput(true)} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg border border-slate-700 text-sm">
+                                <Upload className="w-4 h-4" /> Import
+                            </button>
+                            </div>
+                        </div>
+
+                        {/* 数据加载错误提示 */}
+                        {loadError && (
+                            <div className="max-w-screen-2xl mx-auto mb-6">
+                                <div className="bg-red-900/20 border border-red-800 rounded-lg p-3 text-xs text-red-200 flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-red-400" />
+                                    <span>{loadError}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 数据变更提醒 */}
+                        {hasDataChanged && (
+                            <div className="max-w-screen-2xl mx-auto mb-6">
+                                <div className="bg-amber-900/30 border border-amber-800 rounded-lg p-3 text-xs text-amber-200 flex items-center gap-2">
+                                    <Activity className="w-4 h-4 text-amber-400" />
+                                    <span>Your data has been updated. <strong className="text-amber-300">Please click the "Export" button above to save changes to iit_data.json file.</strong></span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Data Backup Reminder */}
+                        <div className="max-w-screen-2xl mx-auto mb-6">
+                            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-xs text-slate-300 flex items-center gap-2">
+                                <Info className="w-4 h-4 text-blue-400" />
+                                <div>
+                                    <div className="mb-1">Data is automatically saved to your browser's LocalStorage.</div>
+                                    <div className="font-semibold text-amber-300 mb-1">Important: Browser Security Restrictions</div>
+                                    <div className="text-sm">Due to browser security policies, direct writing to files on your device is not permitted. To permanently save your changes:</div>
+                                    <ol className="list-decimal list-inside ml-2 mt-1 text-sm">
+                                        <li>After making changes to products, wait for the <span className="text-amber-300 font-semibold">"Data has been updated"</span> notification</li>
+                                        <li>Click the <span className="text-emerald-300 font-semibold">"Export"</span> button to download the updated iit_data.json file</li>
+                                        <li>Replace the original iit_data.json file in your project with the downloaded file</li>
+                                    </ol>
+                                    <div className="mt-1 text-sm">This ensures your changes are preserved across browser sessions and devices.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                <div className="max-w-screen-2xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <div className="lg:col-span-1 space-y-4">
+                    <Card className="p-4 sticky top-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        <div className="flex items-center gap-2 mb-4 text-emerald-400 font-semibold border-b border-slate-700 pb-2">
+                        <Filter className="w-5 h-5" /> Filters
+                        </div>
+                        
+                        <div className="mb-4">
+                        <h3 className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">Form Factor</h3>
+                        <div className="space-y-1">
+                            {['Monocular', 'Binocular', 'Bi-ocular'].map(type => (
+                            <label key={type} className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer hover:text-slate-200">
+                                <input 
+                                type="checkbox" 
+                                checked={selectedTypes.includes(type)} 
+                                onChange={() => setSelectedTypes(prev => prev.includes(type) ? prev.filter(x => x !== type) : [...prev, type])}
+                                className="rounded bg-slate-800 text-emerald-500 border-slate-600" 
+                                />
+                                {type}
+                            </label>
+                            ))}
+                        </div>
+                        </div>
+
+                        <div className="mb-4">
+                        <h3 className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">Manufacturer</h3>
+                        <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+                            {allManufacturers.map(mfr => (
+                            <label key={mfr} className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer hover:text-slate-200">
+                                <input 
+                                type="checkbox" 
+                                checked={filterManufacturers.includes(mfr)} 
+                                onChange={() => setFilterManufacturers(prev => prev.includes(mfr) ? prev.filter(x => x !== mfr) : [...prev, mfr])}
+                                className="rounded bg-slate-800 text-emerald-500 border-slate-600" 
+                                />
+                                {mfr}
+                            </label>
+                            ))}
+                        </div>
+                        </div>
+
+                        {/* Tube Generation Filter */}
+                        <div className="mb-4">
+                            <h3 className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">Tube Generation</h3>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => setSelectedGenerations(prev => prev.includes('Gen 2') ? prev.filter(x => x !== 'Gen 2') : [...prev, 'Gen 2'])} 
+                                    className={`flex-1 py-1.5 px-2 rounded text-xs border font-bold transition-colors ${selectedGenerations.includes('Gen 2') ? 'bg-yellow-600 text-white border-yellow-500' : 'bg-transparent text-slate-500 border-slate-700 hover:text-slate-300'}`}
+                                >
+                                    G2
+                                </button>
+                                <button 
+                                    onClick={() => setSelectedGenerations(prev => prev.includes('Gen 2+') ? prev.filter(x => x !== 'Gen 2+') : [...prev, 'Gen 2+'])} 
+                                    className={`flex-1 py-1.5 px-2 rounded text-xs border font-bold transition-colors ${selectedGenerations.includes('Gen 2+') ? 'bg-orange-600 text-white border-orange-500' : 'bg-transparent text-slate-500 border-slate-700 hover:text-slate-300'}`}
+                                >
+                                    G2+
+                                </button>
+                                <button 
+                                    onClick={() => setSelectedGenerations(prev => prev.includes('Gen 3') ? prev.filter(x => x !== 'Gen 3') : [...prev, 'Gen 3'])} 
+                                    className={`flex-1 py-1.5 px-2 rounded text-xs border font-bold transition-colors ${selectedGenerations.includes('Gen 3') ? 'bg-red-600 text-white border-red-500' : 'bg-transparent text-slate-500 border-slate-700 hover:text-slate-300'}`}
+                                >
+                                    G3
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mb-4">
+                        <h3 className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">Field of View (FOV)</h3>
+                        <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+                            {allFOVs.map(fovVal => (
+                            <label key={fovVal} className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer hover:text-slate-200">
+                                <input 
+                                type="checkbox" 
+                                checked={filterFOV.includes(fovVal)} 
+                                onChange={() => setFilterFOV(prev => prev.includes(fovVal) ? prev.filter(x => x !== fovVal) : [...prev, fovVal])}
+                                className="rounded bg-slate-800 text-emerald-500 border-slate-600" 
+                                />
+                                {fovVal}°
+                            </label>
+                            ))}
+                        </div>
+                        </div>
+
+                        <div className="mb-6">
+                        <h3 className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">Phosphor</h3>
+                        <div className="flex gap-2">
+                            <button onClick={() => setSelectedPhosphor(p => p.includes('White') ? p.filter(x=>x!=='White') : [...p,'White'])} className={`flex-1 py-1 px-2 rounded text-xs border ${selectedPhosphor.includes('White') ? 'bg-slate-200 text-slate-900 border-white' : 'bg-transparent text-slate-500 border-slate-700'}`}>White</button>
+                            <button onClick={() => setSelectedPhosphor(p => p.includes('Green') ? p.filter(x=>x!=='Green') : [...p,'Green'])} className={`flex-1 py-1 px-2 rounded text-xs border ${selectedPhosphor.includes('Green') ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-transparent text-slate-500 border-slate-700'}`}>Green</button>
+                        </div>
+                        </div>
+
+                        <div className="space-y-5">
+                        <div>
+                            <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400">Avg FOM</span>
+                            <span className="text-slate-200 font-mono">{fomFilter[0]} - {fomFilter[1]}</span>
+                            </div>
+                            <div className="flex gap-2">
+                            <input type="range" min="1000" max="4000" step="50" value={fomFilter[0]} onChange={(e) => setFomFilter([Number(e.target.value), fomFilter[1]])} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                            <input type="range" min="1000" max="4000" step="50" value={fomFilter[1]} onChange={(e) => setFomFilter([fomFilter[0], Number(e.target.value)])} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                            </div>
+                        </div>
+                        <div>
+                            <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400">Avg SNR</span>
+                            <span className="text-slate-200 font-mono">{snrFilter[0]} - {snrFilter[1]}</span>
+                            </div>
+                            <div className="flex gap-2">
+                            <input type="range" min="15" max="50" step="1" value={snrFilter[0]} onChange={(e) => setSnrFilter([Number(e.target.value), snrFilter[1]])} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                            <input type="range" min="15" max="50" step="1" value={snrFilter[1]} onChange={(e) => setSnrFilter([snrFilter[0], Number(e.target.value)])} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                            </div>
+                        </div>
+                        <div>
+                            <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400">Avg RES (lp/mm)</span>
+                            <span className="text-slate-200 font-mono">{resFilter[0]} - {resFilter[1]}</span>
+                            </div>
+                            <div className="flex gap-2">
+                            <input type="range" min="40" max="90" step="2" value={resFilter[0]} onChange={(e) => setResFilter([Number(e.target.value), resFilter[1]])} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                            <input type="range" min="40" max="90" step="2" value={resFilter[1]} onChange={(e) => setResFilter([resFilter[0], Number(e.target.value)])} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                            </div>
+                        </div>
+                        <div>
+                            <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400">Price ($)</span>
+                            <span className="text-slate-200 font-mono">${priceRange[0]} - ${priceRange[1]}</span>
+                            </div>
+                            <div className="flex gap-2">
+                            <input type="range" min="0" max="50000" step="500" value={priceRange[0]} onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                            <input type="range" min="0" max="50000" step="500" value={priceRange[1]} onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])} className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
+                            </div>
+                        </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-slate-700">
+                        <h3 className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider">Must Have Features</h3>
+                        <div className="space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                            {allFeatures.map(feat => (
+                            <label key={feat} className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer hover:text-emerald-400 transition-colors">
+                                <input 
+                                type="checkbox" 
+                                checked={filterFeatures.includes(feat)}
+                                onChange={() => setFilterFeatures(prev => prev.includes(feat) ? prev.filter(f => f !== feat) : [...prev, feat])}
+                                className="rounded-sm w-3 h-3 bg-slate-800 border-slate-600 text-emerald-500 focus:ring-0" 
+                                />
+                                {feat}
+                            </label>
+                            ))}
+                        </div>
+                        </div>
+
+                        <div className="pt-4 mt-4 border-t border-slate-700 text-xs text-slate-500 flex items-center gap-1">
+                        <Info className="w-3 h-3" /> Showing {filteredData.length} of {data.length} units
+                        </div>
+                    </Card>
+                    </div>
+
+                    <div className="lg:col-span-3 space-y-6">
+                        {/* CHART SECTION */}
+                        <Card className="p-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                                <h2 className="text-lg font-semibold flex items-center gap-2 text-emerald-400">
+                                    <Activity className="w-5 h-5" /> Market Analysis
+                                </h2>
+                                <div className="flex bg-slate-900 rounded p-1 border border-slate-700">
+                                    {['fom', 'snr', 'res'].map(metric => (
+                                        <button 
+                                            key={metric}
+                                            onClick={() => setChartMetric(metric)}
+                                            className={`px-3 py-1 text-xs rounded uppercase font-bold transition-all ${chartMetric === metric ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            {metric}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Avg Price</div>
+                                    <div className="text-2xl font-bold text-white">
+                                        ${filteredData.length ? Math.round(filteredData.reduce((acc, curr) => acc + curr.price, 0) / filteredData.length).toLocaleString() : 0}
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Avg {chartMetric.toUpperCase()}</div>
+                                    <div className="text-2xl font-bold text-emerald-400">
+                                        {filteredData.length ? Math.round(filteredData.reduce((acc, curr) => {
+                                            if (chartMetric === 'fom') return acc + getAvg(curr.fom);
+                                            if (chartMetric === 'snr') return acc + getAvg(curr.snr);
+                                            if (chartMetric === 'res') return acc + getAvg(curr.resolution);
+                                            return acc;
+                                        }, 0) / filteredData.length) : 0}
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-800">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Value (Perf/$100)</div>
+                                    <div className="text-2xl font-bold text-blue-400">
+                                        {filteredData.length ? ((filteredData.reduce((acc, curr) => {
+                                            if (chartMetric === 'fom') return acc + getAvg(curr.fom);
+                                            if (chartMetric === 'snr') return acc + getAvg(curr.snr);
+                                            if (chartMetric === 'res') return acc + getAvg(curr.resolution);
+                                            return acc;
+                                        }, 0) / filteredData.reduce((acc, curr) => acc + curr.price, 0)) * 100).toFixed(2) : 0}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <ScatterPlot 
+                                data={filteredData} 
+                                xMetric={chartMetric} 
+                                onPointClick={(p) => openEditForm(p)} 
+                            />
+                        </Card>
+
+                    <Card className="overflow-hidden flex flex-col">
+                        <div className="p-4 border-b border-slate-700 bg-slate-800 flex justify-between items-center">
+                        <h2 className="text-sm font-bold flex items-center gap-2 uppercase tracking-wide text-emerald-400">
+                            <ArrowRightLeft className="w-4 h-4" /> Comparison Board
+                        </h2>
+                        <div className="flex gap-2">
+                            {comparisonList.length === 0 && filteredData.length > 0 && (
+                                <button onClick={compareAllFiltered} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded flex items-center gap-1">
+                                    <Layers className="w-3 h-3" /> Add All Filtered
+                                </button>
+                            )}
+                            {comparisonList.length > 0 && (
+                                <button onClick={() => setComparisonList([])} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1">
+                                <Trash2 className="w-3 h-3" /> Clear All
+                                </button>
+                            )}
+                        </div>
+                        </div>
+                        
+                        {comparisonProducts.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500 text-sm italic">
+                            No products selected. Click "Compare" on items below to add them here.
+                        </div>
+                        ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-900/50 text-xs text-slate-400">
+                                <th className="p-3 min-w-[120px]">Spec</th>
+                                {comparisonProducts.map(p => (
+                                    <th key={p.id} className="p-3 min-w-[180px] border-l border-slate-700">
+                                    <div className="flex justify-between items-start">
+                                        <span className="text-slate-200 font-bold block mb-1">{p.name}</span>
+                                        <button onClick={() => toggleComparison(p.id)} className="text-slate-500 hover:text-red-400"><XIcon className="w-3 h-3"/></button>
+                                    </div>
+                                    <div className="text-emerald-400">${p.price.toLocaleString()}</div>
+                                    </th>
+                                ))}
+                                </tr>
+                            </thead>
+                            <tbody className="text-xs text-slate-300">
+                                <tr className="border-t border-slate-700/50">
+                                <td className="p-3 font-medium text-slate-400">Form / Gen</td>
+                                {comparisonProducts.map(p => (
+                                    <td key={p.id} className="p-3 border-l border-slate-700/50">
+                                    {getFormFactorCode(p.type)} / {getGenCode(p.generation)}
+                                    </td>
+                                ))}
+                                </tr>
+                                <tr className="bg-slate-900/20 border-t border-slate-700/50">
+                                <td className="p-3 font-medium text-slate-400">Tube</td>
+                                {comparisonProducts.map(p => (
+                                    <td key={p.id} className="p-3 border-l border-slate-700/50 font-mono text-[10px]">{p.tubeType}</td>
+                                ))}
+                                </tr>
+                                <tr className="border-t border-slate-700/50">
+                                <td className="p-3 font-medium text-slate-400">FOV</td>
+                                {comparisonProducts.map(p => (
+                                    <td key={p.id} className="p-3 border-l border-slate-700/50 font-mono text-slate-200">{p.fov || 40}°</td>
+                                ))}
+                                </tr>
+                                <tr className="bg-slate-900/20 border-t border-slate-700/50">
+                                <td className="p-3 font-medium text-slate-400">FOM</td>
+                                {comparisonProducts.map(p => (
+                                    <td key={p.id} className="p-3 border-l border-slate-700/50 font-mono text-emerald-300">{formatRange(p.fom)}</td>
+                                ))}
+                                </tr>
+                                <tr className="border-t border-slate-700/50">
+                                <td className="p-3 font-medium text-slate-400">SNR</td>
+                                {comparisonProducts.map(p => (
+                                    <td key={p.id} className="p-3 border-l border-slate-700/50 font-mono">{formatRange(p.snr, 1)}</td>
+                                ))}
+                                </tr>
+                                <tr className="bg-slate-900/20 border-t border-slate-700/50">
+                                <td className="p-3 font-medium text-slate-400">Resolution</td>
+                                {comparisonProducts.map(p => (
+                                    <td key={p.id} className="p-3 border-l border-slate-700/50 font-mono">{formatRange(p.resolution)}</td>
+                                ))}
+                                </tr>
+                            </tbody>
+                            </table>
+                        </div>
+                        )}
+                    </Card>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {filteredData.map(product => (
+                        <Card key={product.id} className="p-4 hover:border-emerald-500/50 transition-colors group flex flex-col relative">
+                            <div className="flex gap-1 mb-2">
+                            <Badge color={getFormFactorColor(product.type)}>{getFormFactorCode(product.type)}</Badge>
+                            <Badge color={getGenColor(product.generation)}>{getGenCode(product.generation)}</Badge>
+                            <Badge color={product.phosphor === 'White' ? 'blue' : 'green'}>
+                                {product.phosphor === 'White' ? 'WP' : 'GP'}
+                            </Badge>
+                            <Badge color="slate">{product.fov || 40}°</Badge>
+                            </div>
+
+                            <div className="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 className="font-bold text-slate-100 text-lg leading-tight group-hover:text-emerald-400 transition-colors truncate w-full max-w-[200px]">
+                                {product.name}
+                                </h3>
+                                <p className="text-xs text-slate-400">{product.manufacturer}</p>
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => openEditForm(product)} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => handleDelete(product.id)} className="p-1 hover:bg-red-900/30 rounded text-slate-400 hover:text-red-400" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-y-1 gap-x-2 mb-4 text-xs bg-slate-900/40 p-2 rounded border border-slate-700/50">
+                            <div className="col-span-2 border-b border-slate-700/50 pb-1 mb-1 flex justify-between">
+                                <span className="text-slate-500">Tube</span>
+                                <span className="text-slate-300 truncate max-w-[140px]" title={product.tubeType}>{product.tubeType}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-500">FOM</span>
+                                <span className="text-emerald-400 font-mono">{formatRange(product.fom)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-500">RES</span>
+                                <span className="text-slate-300 font-mono">{formatRange(product.resolution)}</span>
+                            </div>
+                            <div className="flex justify-between col-span-2 border-t border-slate-700/50 pt-1 mt-1">
+                                <span className="text-slate-500">SNR</span>
+                                <span className="text-blue-300 font-mono">{formatRange(product.snr, 1)}</span>
+                            </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1 mb-4">
+                            {/* Card Badges: Use badges array instead of slicing features */}
+                            {(product.badges || []).map(f => (
+                                <span key={f} className="text-[9px] bg-slate-950 text-slate-500 px-1.5 py-0.5 rounded border border-slate-800">{f}</span>
+                            ))}
+                            </div>
+
+                            <div className="mt-auto pt-3 border-t border-slate-700">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                <div className="text-emerald-400 font-bold text-xl leading-none">${product.price.toLocaleString()}</div>
+                                {!!product.priceEuro && <div className="text-[10px] text-slate-500">€{product.priceEuro.toLocaleString()} (Est.)</div>}
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                                <button 
+                                onClick={() => toggleComparison(product.id)}
+                                className={`flex items-center justify-center gap-2 text-xs py-2 rounded transition-colors border ${comparisonList.includes(product.id) ? 'bg-emerald-900/30 border-emerald-500 text-emerald-400' : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'}`}
+                                >
+                                {comparisonList.includes(product.id) ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                Compare
+                                </button>
+                                
+                                <a 
+                                href={product.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-2 text-xs bg-blue-600 hover:bg-blue-500 text-white py-2 rounded transition-colors font-medium"
+                                >
+                                Details <ExternalLink className="w-3 h-3" />
+                                </a>
+                            </div>
+                            </div>
+                        </Card>
+                        ))}
+                    </div>
+                    </div>
+                </div>
+
+                {/* JSON Import Modal */}
+                {showJsonInput && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                        <h3 className="font-bold text-lg">Import Data (JSON)</h3>
+                        <button onClick={() => setShowJsonInput(false)} className="text-slate-400 hover:text-white"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        
+                        {/* 文件上传区域 */}
+                        <div className="p-4 border-b border-slate-700">
+                            <h4 className="text-sm font-medium text-slate-300 mb-3">Import Options</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* 文件选择上传 */}
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm font-medium transition-colors"
+                                        onClick={() => document.getElementById('fileInput').click()}
+                                    >
+                                        <Upload className="w-4 h-4 inline mr-1" /> Upload File
+                                    </button>
+                                    <input 
+                                        type="file" 
+                                        id="fileInput" 
+                                        accept=".json" 
+                                        onChange={handleFileImport}
+                                        className="hidden"
+                                    />
+                                    <span className="text-xs text-slate-500">or drag and drop below</span>
+                                </div>
+                                
+                                {/* 从LocalStorage导出按钮 */}
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        onClick={handleExport}
+                                        className="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+                                    >
+                                        <Download className="w-4 h-4 inline mr-1" /> Export Current Data
+                                    </button>
+                                    <span className="text-xs text-slate-500">to backup or transfer</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* 拖拽上传区域和JSON输入框 */}
+                        <div 
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-4 m-4 font-mono text-xs text-emerald-300 outline-none resize-none min-h-[300px] flex flex-col"
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.add('border-emerald-500');
+                            }}
+                            onDragLeave={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.remove('border-emerald-500');
+                            }}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                e.currentTarget.classList.remove('border-emerald-500');
+                                const file = e.dataTransfer.files[0];
+                                if (file && file.type === 'application/json') {
+                                    const reader = new FileReader();
+                                    reader.onload = (event) => {
+                                        setRawJson(event.target.result);
+                                    };
+                                    reader.readAsText(file);
+                                }
+                            }}
+                        >
+                            <textarea 
+                                value={rawJson} 
+                                onChange={(e) => setRawJson(e.target.value)} 
+                                className="flex-1 bg-transparent border-none outline-none resize-none"
+                                placeholder="Paste JSON data here, or drag and drop a JSON file..."
+                            />
+                        </div>
+                        
+                        <div className="p-4 border-t border-slate-700 flex justify-between items-center">
+                            <div className="text-xs text-slate-500">
+                                <Info className="w-3 h-3 inline mr-1" /> 
+                                Data is automatically saved to your browser's LocalStorage
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowJsonInput(false)} className="px-4 py-2 text-sm text-slate-400">Cancel</button>
+                                <button onClick={handleImport} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+                )}
+
+                {/* Add/Edit Product Modal */}
+                {showForm && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
+                        <h3 className="font-bold text-lg text-white">{formData.id ? 'Edit Product' : 'Add New Product'}</h3>
+                        <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        
+                        {formError && (
+                        <div className="bg-red-900/20 border-l-4 border-red-500 p-3 m-4 mb-0 flex items-center gap-3">
+                            <AlertTriangle className="w-5 h-5 text-red-500" />
+                            <p className="text-sm text-red-200">{formError}</p>
+                        </div>
+                        )}
+
+                        <div className="p-6 overflow-y-auto custom-scrollbar">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            
+                            <div className="col-span-2">
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Source URL</label>
+                            <input type="text" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-emerald-500 outline-none text-blue-400" placeholder="https://..." value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} />
+                            </div>
+
+                            <div className="col-span-2 md:col-span-1">
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Product Name</label>
+                            <input type="text" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-emerald-500 outline-none" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            </div>
+
+                            <div className="col-span-2 md:col-span-1">
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Manufacturer</label>
+                            <div className="bg-slate-950 border border-slate-700 rounded p-2 max-h-32 overflow-y-auto custom-scrollbar mb-2">
+                                {allManufacturers.length === 0 && <span className="text-xs text-slate-500 p-1">No manufacturers found. Add one below.</span>}
+                                {allManufacturers.map(mfr => (
+                                <div key={mfr} className="flex items-center justify-between p-1 rounded hover:bg-slate-800 group/mfr">
+                                    <label className={`flex items-center gap-2 text-xs cursor-pointer flex-1 ${formData.manufacturer === mfr ? 'text-emerald-400 font-bold' : 'text-slate-300'}`}>
+                                    <input 
+                                        type="radio" 
+                                        name="manufacturer_select"
+                                        checked={formData.manufacturer === mfr}
+                                        onChange={() => setFormData({ ...formData, manufacturer: mfr })}
+                                        className="text-emerald-500 focus:ring-0 bg-slate-800 border-slate-600"
+                                    />
+                                    {mfr}
+                                    </label>
+                                    <button 
+                                    onClick={(e) => { e.preventDefault(); handleDeleteManufacturer(mfr); }}
+                                    className="opacity-0 group-hover/mfr:opacity-100 p-1 text-slate-600 hover:text-red-400 transition-opacity"
+                                    title="Delete Manufacturer (sets products to 'Unknown')"
+                                    >
+                                    <Trash2 className="w-3 h-3" />
+                                    </button>
+                                </div>
+                                ))}
+                            </div>
+                            <div className="flex gap-2">
+                                <input 
+                                type="text" 
+                                className="flex-1 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs focus:border-emerald-500 outline-none" 
+                                placeholder="New Manufacturer..." 
+                                value={customManufacturer}
+                                onChange={e => setCustomManufacturer(e.target.value)}
+                                />
+                                <button 
+                                onClick={(e) => { e.preventDefault(); addCustomManufacturer(); }}
+                                disabled={!customManufacturer.trim()}
+                                className="bg-slate-700 hover:bg-emerald-600 disabled:opacity-50 text-white px-2 rounded text-xs"
+                                >
+                                <Plus className="w-4 h-4" />
+                                </button>
+                            </div>
+                            </div>
+                            
+                            <div className="col-span-1">
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Price (USD)</label>
+                            <input type="number" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-emerald-500 outline-none" value={formData.price} onChange={e => setFormData({...formData, price: Number(e.target.value)})} />
+                            </div>
+                            <div className="col-span-1">
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Price (Euro) - Optional</label>
+                            <input type="number" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-emerald-500 outline-none" placeholder="€" value={formData.priceEuro || ''} onChange={e => setFormData({...formData, priceEuro: e.target.value ? Number(e.target.value) : undefined})} />
+                            </div>
+
+                            <div>
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Type</label>
+                            <select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-emerald-500 outline-none" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+                                <option value="Monocular">Monocular</option>
+                                <option value="Binocular">Binocular</option>
+                                <option value="Bi-ocular">Bi-ocular</option>
+                            </select>
+                            </div>
+                            <div>
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Generation</label>
+                            <select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-emerald-500 outline-none" value={formData.generation} onChange={e => setFormData({...formData, generation: e.target.value})}>
+                                <option value="Gen 3">Gen 3</option>
+                                <option value="Gen 2+">Gen 2+</option>
+                                <option value="Gen 2">Gen 2</option>
+                            </select>
+                            </div>
+
+                            <div>
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Phosphor</label>
+                            <select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-emerald-500 outline-none" value={formData.phosphor} onChange={e => setFormData({...formData, phosphor: e.target.value})}>
+                                <option value="White">White Phosphor</option>
+                                <option value="Green">Green Phosphor</option>
+                            </select>
+                            </div>
+
+                            {/* FOV Section */}
+                            <div>
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Field of View (Degrees)</label>
+                            <div className="bg-slate-950 border border-slate-700 rounded p-2 max-h-32 overflow-y-auto custom-scrollbar mb-2">
+                                {allFOVs.map(fovVal => (
+                                <div key={fovVal} className="flex items-center justify-between p-1 rounded hover:bg-slate-800 group/fov">
+                                    <label className={`flex items-center gap-2 text-xs cursor-pointer flex-1 ${formData.fov === fovVal ? 'text-emerald-400 font-bold' : 'text-slate-300'}`}>
+                                    <input 
+                                        type="radio" 
+                                        name="fov_select"
+                                        checked={formData.fov === fovVal}
+                                        onChange={() => setFormData({ ...formData, fov: fovVal })}
+                                        className="text-emerald-500 focus:ring-0 bg-slate-800 border-slate-600"
+                                    />
+                                    {fovVal}°
+                                    </label>
+                                    <button 
+                                    onClick={(e) => { e.preventDefault(); handleDeleteFOV(fovVal); }}
+                                    className="opacity-0 group-hover/fov:opacity-100 p-1 text-slate-600 hover:text-red-400 transition-opacity"
+                                    title="Delete FOV (resets to 40°)"
+                                    >
+                                    <Trash2 className="w-3 h-3" />
+                                    </button>
+                                </div>
+                                ))}
+                            </div>
+                            <div className="flex gap-2">
+                                <input 
+                                type="number" 
+                                className="flex-1 bg-slate-950 border border-slate-700 rounded p-1.5 text-xs focus:border-emerald-500 outline-none" 
+                                placeholder="New FOV (e.g. 50)" 
+                                value={customFOV}
+                                onChange={e => setCustomFOV(e.target.value)}
+                                />
+                                <button 
+                                onClick={(e) => { e.preventDefault(); addCustomFOV(); }}
+                                disabled={!customFOV.trim()}
+                                className="bg-slate-700 hover:bg-emerald-600 disabled:opacity-50 text-white px-2 rounded text-xs"
+                                >
+                                <Plus className="w-4 h-4" />
+                                </button>
+                            </div>
+                            </div>
+                            
+                            <div className="col-span-2 border-t border-slate-800 pt-4 mt-2">
+                            <h4 className="text-sm font-semibold text-emerald-400 mb-1 flex items-center gap-2">
+                                <Calculator className="w-4 h-4" /> Specs Calculator
+                            </h4>
+                            <p className="text-xs text-slate-500 mb-3">Enter FOM and Res ranges. SNR will be calculated automatically.</p>
+                            </div>
+
+                            <div className="col-span-2">
+                            <label className="block text-xs font-medium text-slate-400 mb-1">Tube Type</label>
+                            <input type="text" className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-sm focus:border-emerald-500 outline-none" placeholder="e.g. L3 Unfilmed 24UA" value={formData.tubeType} onChange={e => setFormData({...formData, tubeType: e.target.value})} />
+                            </div>
+
+                            {/* FOM Range Input */}
+                            <div className="bg-slate-800/50 p-3 rounded border border-slate-700">
+                            <label className="block text-xs font-bold text-slate-300 mb-2">FOM Range</label>
+                            <div className="flex gap-2 items-center">
+                                <input type="number" className="w-full bg-slate-950 border border-slate-600 rounded p-1 text-sm text-center" placeholder="Min" value={formData.fomMin} onChange={e => setFormData({...formData, fomMin: Number(e.target.value)})} />
+                                <span className="text-slate-500">-</span>
+                                <input type="number" className="w-full bg-slate-950 border border-slate-600 rounded p-1 text-sm text-center" placeholder="Max" value={formData.fomMax} onChange={e => setFormData({...formData, fomMax: Number(e.target.value)})} />
+                            </div>
+                            </div>
+
+                            {/* Res Range Input */}
+                            <div className="bg-slate-800/50 p-3 rounded border border-slate-700">
+                            <label className="block text-xs font-bold text-slate-300 mb-2">Resolution Range (lp/mm)</label>
+                            <div className="flex gap-2 items-center">
+                                <input type="number" className="w-full bg-slate-950 border border-slate-600 rounded p-1 text-sm text-center" placeholder="Min" value={formData.resMin} onChange={e => setFormData({...formData, resMin: Number(e.target.value)})} />
+                                <span className="text-slate-500">-</span>
+                                <input type="number" className="w-full bg-slate-950 border border-slate-600 rounded p-1 text-sm text-center" placeholder="Max" value={formData.resMax} onChange={e => setFormData({...formData, resMax: Number(e.target.value)})} />
+                            </div>
+                            </div>
+
+                            <div className="col-span-2 bg-emerald-900/20 p-3 rounded border border-emerald-900/50 flex items-center justify-between">
+                            <div>
+                                <label className="block text-xs font-bold text-emerald-400">Calculated SNR Range</label>
+                                <p className="text-[10px] text-slate-400">Derived from FOM / Res</p>
+                            </div>
+                            <div className="text-xl font-mono text-emerald-300 font-bold">
+                                {formData.snrMin?.toFixed(1)} - {formData.snrMax?.toFixed(1)}
+                            </div>
+                            </div>
+
+                            {/* Features Checklist - Redesigned with 2 Checkboxes */}
+                            <div className="col-span-2 pt-4 border-t border-slate-800 mt-2">
+                            <div className="flex justify-between items-end mb-2">
+                                <label className="block text-xs font-bold text-emerald-400">Feature Management</label>
+                                <span className="text-[10px] text-slate-500">Badges: {formData.selectedBadges.length}/5</span>
+                            </div>
+                            
+                            {/* Header Row */}
+                            <div className="grid grid-cols-[1fr_40px_40px_24px] gap-2 px-2 py-1 text-[10px] font-bold text-slate-500 border-b border-slate-800">
+                                <div>Name</div>
+                                <div className="text-center">Has</div>
+                                <div className="text-center">Badge</div>
+                                <div></div>
+                            </div>
+
+                            <div className="bg-slate-950 border border-slate-700 rounded p-2 mb-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                {allFeatures.map(f => {
+                                    const hasFeature = formData.selectedFeatures.includes(f);
+                                    const isBadge = formData.selectedBadges.includes(f);
+                                    
+                                    return (
+                                        <div key={f} className="grid grid-cols-[1fr_40px_40px_24px] gap-2 items-center p-1.5 rounded hover:bg-slate-900 group/feature border-b border-slate-800/50 last:border-0">
+                                            <div className={`text-xs truncate ${hasFeature ? 'text-emerald-400' : 'text-slate-400'}`}>{f}</div>
+                                            
+                                            {/* 'Has' Checkbox */}
+                                            <div className="flex justify-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={hasFeature}
+                                                    onChange={() => toggleHasFeature(f)}
+                                                    className="rounded w-4 h-4 bg-slate-800 border-slate-600 text-emerald-500 focus:ring-0 cursor-pointer" 
+                                                />
+                                            </div>
+
+                                            {/* 'Badge' Checkbox */}
+                                            <div className="flex justify-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={isBadge}
+                                                    disabled={!hasFeature || (!isBadge && formData.selectedBadges.length >= 5)}
+                                                    onChange={() => toggleShowBadge(f)}
+                                                    className="rounded w-4 h-4 bg-slate-800 border-slate-600 text-blue-500 focus:ring-0 cursor-pointer disabled:opacity-20" 
+                                                />
+                                            </div>
+
+                                            {/* Delete Button */}
+                                            <button 
+                                                onClick={() => handleDeleteFeature(f)}
+                                                className="opacity-0 group-hover/feature:opacity-100 text-slate-600 hover:text-red-400 transition-opacity flex justify-center"
+                                                title="Delete feature globally"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            
+                            <div className="flex gap-2 items-center">
+                                <input 
+                                type="text" 
+                                placeholder="Add new feature..." 
+                                className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-xs focus:border-emerald-500 outline-none"
+                                value={customFeature}
+                                onChange={e => setCustomFeature(e.target.value)}
+                                />
+                                <button 
+                                onClick={addCustomFeature}
+                                disabled={!customFeature.trim()}
+                                className="bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white px-3 py-2 rounded text-xs font-medium"
+                                >
+                                <Plus className="w-3 h-3" /> Add
+                                </button>
+                            </div>
+                            </div>
+
+                        </div>
+                        </div>
+
+                        <div className="p-4 border-t border-slate-700 flex justify-end gap-2 bg-slate-800">
+                        <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancel</button>
+                        <button onClick={handleSaveProduct} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold shadow-lg">
+                            {formData.id ? 'Save Changes' : 'Create Product'}
+                        </button>
+                        </div>
+                    </div>
+                    </div>
+                )}
+
+                {/* Custom Confirmation Modal */}
+                {confirmConfig.show && (
+                    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-slate-600 rounded-lg shadow-2xl max-w-sm w-full p-6 text-center">
+                        <div className="mx-auto w-12 h-12 rounded-full bg-red-900/30 flex items-center justify-center mb-4">
+                            <AlertTriangle className="w-6 h-6 text-red-500" />
+                        </div>
+                        <h3 className="text-lg font-bold text-white mb-2">Confirm Action</h3>
+                        <p className="text-slate-400 text-sm mb-6">{confirmConfig.message}</p>
+                        <div className="flex gap-3 justify-center">
+                        <button 
+                            onClick={() => setConfirmConfig(prev => ({...prev, show: false}))}
+                            className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={confirmConfig.onConfirm}
+                            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-bold"
+                        >
+                            Confirm Delete
+                        </button>
+                        </div>
+                    </div>
+                    </div>
+                )}
+                        </>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
